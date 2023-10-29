@@ -8,19 +8,22 @@ exports.getMusic = async (req, res) => {
     const type = req.query.type;
     let results = null;
 
+    const page = req.query.page || 1;
+    const limit = parseInt(req.query.body) || 10;
+
     if (type === "multi") {
       results = {
-        tracks: await searchTrack(q),
-        artists: await searchArtist(q),
-        albums: await searchAlbum(q),
+        tracks: await searchTrack(q, page, limit),
+        artists: await searchArtist(q, page, limit),
+        albums: await searchAlbum(q, page, limit),
       };
     } else {
       if (type === "track") {
-        results = await searchTrack(q);
+        results = await searchTrack(q, page, limit);
       } else if (type === "artist") {
-        results = await searchArtist(q);
+        results = await searchArtist(q, page, limit);
       } else if (type === "album") {
-        results = await searchAlbum(q);
+        results = await searchAlbum(q, page, limit);
       } else {
         throw new Error("Invalid type");
       }

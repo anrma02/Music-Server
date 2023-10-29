@@ -1,8 +1,6 @@
 const jwt = require("jsonwebtoken");
 
 exports.authMiddleware = {
-  // verifyToken
-
   verifyToken: (req, res, next) => {
     const token = req.headers.token;
     if (token) {
@@ -33,9 +31,7 @@ exports.authMiddleware = {
       }
     });
   },
-
   // Verify Admin Token
-
   verifyAdminToken: (req, res, next) => {
     this.authMiddleware.verifyToken(req, res, () => {
       if (req.user.id == req.params.id || req.user.isAdmin == true) {

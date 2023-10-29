@@ -34,6 +34,7 @@ exports.authController = {
   /*
    *  Generate Access Token
    */
+
   generateAccessToken: (user) => {
     return jwt.sign(
       {
@@ -191,13 +192,12 @@ exports.authController = {
   /*
    * Logout
    */
-  logoutUser: async (req, res, next) => {
-    res.clearCookie("refreshToken");
-    refreshTokens = refreshTokens.filter(
-      (token) => token !== req.cookies.refreshToken
-    );
-
-    res.status(200).json("Logged out successfully!");
-    next();
+  logoutUser: async (req, res) => {
+    try {
+      res.clearCookie("refreshToken");
+      res.status(200).json({ success: true, message: "Logout successfully" });
+    } catch (error) {
+      res.status(500).json(error);
+    }
   },
 };

@@ -5,7 +5,6 @@ const sharp = require("sharp");
 const removeDiacritics = require("remove-diacritics");
 
 const { Track } = require("../models/trackModel");
-const { request } = require("http");
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -97,7 +96,7 @@ exports.createTrack = async (req, res) => {
           contentType: imageFile ? imageFile[0].mimetype : "",
         },
       });
-
+      newItem.populate("artist", ["name", "image"]);
       const item = await newItem.save();
 
       if (req.body.track) {
@@ -114,7 +113,7 @@ exports.createTrack = async (req, res) => {
   }
 };
 
-exports.searchTrack = async (q) => {
+exports.searchTrack = async (q, page, limit) => {
   try {
     if (!q) {
       throw new Error("Empty query");
@@ -128,11 +127,21 @@ exports.searchTrack = async (q) => {
         .replace(/\s+/g, "|"),
       "i"
     );
-    const items = await Track.find({ name: regexQuery }).populate("artist");
+
+    const skipCount = (page - 1) * limit;
+    const items = await Track.find({ name: regexQuery })
+      .populate("artist", ["name", "image"])
+      .skip(skipCount)
+      .limit(limit);
+    const count = await Track.countDocuments();
+    const totalPages = Math.ceil(count / limit);
     const totalCount = items.length;
+
     return {
       totalCount,
       items,
+      totalPages,
+      page,
     };
   } catch (error) {
     throw new Error(error.message);
@@ -142,12 +151,15 @@ exports.searchTrack = async (q) => {
 exports.getTrack = async (req, res) => {
   try {
     const limit = parseInt(req.query.body) || 10;
-    const count = await Track.countDocuments();
     const page = parseInt(req.query.page) || 1;
 
     const skip = (page - 1) * limit;
 
-    const items = await Track.find().populate("artist").skip(skip).limit(limit);
+    const count = await Track.countDocuments();
+    const items = await Track.find()
+      .populate("artist", ["name", "image"])
+      .skip(skip)
+      .limit(limit);
     const totalPages = Math.ceil(count / limit);
 
     res.status(200).json({ success: true, totalPages, page, items });
@@ -158,7 +170,10 @@ exports.getTrack = async (req, res) => {
 
 exports.getTrackByID = async (req, res) => {
   try {
-    const items = await Track.findById(req.params.id).populate("artist");
+    const items = await Track.findById(req.params.id).populate("artist", [
+      "name",
+      "image",
+    ]);
     if (items) {
       res.status(200).json({ success: true, items });
     } else {
@@ -170,6 +185,7 @@ exports.getTrackByID = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
 exports.updateTrack = async (req, res) => {
   try {
     upload(req, res, async (err) => {
@@ -187,17 +203,25 @@ exports.updateTrack = async (req, res) => {
         duration: duration,
         genre: genre,
         audio: {
-          contentType: req.files.audio[0].mimetype,
-          filename: req.files.audio[0].filename,
-          path: req.files.audio[0].path,
+          contentType: req.files?.audio?.[0]?.mimetype,
+          filename: req.files?.audio?.[0]?.filename,
+          path: req.files?.audio?.[0]?.path,
         },
         image: {
-          contentType: req.files.image[0].mimetype,
-          filename: req.files.image[0].filename,
-          path: req.files.image[0].path,
+          contentType: req.files?.image?.[0]?.mimetype,
+          filename: req.files?.image?.[0]?.filename,
+          path: req.files?.image?.[0]?.path,
         },
         updatedAt: new Date(),
       };
+
+      if (updatedTrack.artist) {
+        updatedTrack.artist = updatedTrack.artist._id
+          ? await Artist.findById(updatedTrack.artist._id).populate(
+              "name, image"
+            )
+          : null;
+      }
 
       const items = await Track.findByIdAndUpdate(req.params.id, updatedTrack, {
         new: true,
@@ -208,7 +232,7 @@ exports.updateTrack = async (req, res) => {
       }
 
       // Remove old audio after update
-      if (req.files.audio && items.audio.path) {
+      if (req.files?.audio && items.audio.path) {
         fs.unlink(items.audio.path, (err) => {
           if (err) {
             console.error("Error deleting the old audio file:", err);

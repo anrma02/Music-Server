@@ -52,7 +52,7 @@ exports.createAlbum = async (req, res) => {
           contentType: req.file.mimetype,
         },
       });
-
+      items.populate("artist", ["name", "image"]);
       await items.save();
 
       res.status(201).json({
@@ -85,6 +85,14 @@ exports.addTrackToAlbum = async (req, res) => {
         .json({ message: "Track already added to the album" });
     }
     album.tracks.push(trackId);
+    album.populate("tracks", [
+      "name",
+      "artist",
+      "duration",
+      "genre",
+      "audio",
+      "image",
+    ]);
     await album.save();
 
     res.status(201).json({
@@ -96,14 +104,23 @@ exports.addTrackToAlbum = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
-
 exports.getAlbumTrack = async (req, res) => {
   try {
-    const items = await Album.findById(req.params.id).populate("tracks");
+    const items = await Album.findById(req.params.id)
+      .populate({
+        path: "tracks",
+        select: ["name", "image", "duration", "audio"],
+      })
+      .populate({
+        path: "artist",
+        select: ["name", "image"],
+      })
+      .select(["name", "releaseDate", "image"]);
+
     if (!items) {
       return res.status(404).json({ message: "Album Track not found" });
     }
-    await items.save();
+
     res.status(200).json({
       success: true,
       items,
@@ -113,7 +130,7 @@ exports.getAlbumTrack = async (req, res) => {
   }
 };
 
-exports.searchAlbum = async (q) => {
+exports.searchAlbum = async (q, page, limit) => {
   try {
     if (!q) {
       throw new Error("Empty query");
@@ -127,22 +144,27 @@ exports.searchAlbum = async (q) => {
         .replace(/\s+/g, "|"),
       "i"
     );
+    const skip = (page - 1) * limit;
 
     const items = await Album.find({ name: regexQuery })
-      .populate("tracks")
-      .populate("artist");
+      .populate("tracks", ["name", "duration", "genre", "audio", "image"])
+      .populate("artist", ["name", "image"])
+      .skip(skip)
+      .limit(limit);
+    const count = await Album.countDocuments();
+    const totalPage = Math.ceil(count / limit);
     const totalCount = items.length;
 
-    return { totalCount, items };
+    return { totalCount, items, page, totalPage };
   } catch (error) {
-    throw error;
+    throw new Error(error.message);
   }
 };
 exports.getAlbumByID = async (req, res) => {
   try {
     const items = await Album.findById(req.params.id)
-      .populate("tracks")
-      .populate("artist");
+      .populate("tracks", ["name", "duration", "genre", "audio", "image"])
+      .populate("artist", ["name", "image"]);
 
     if (!items) {
       return res.status(404).json({ error: "Album not found" });
@@ -173,10 +195,14 @@ exports.delete = async (req, res) => {
 
 exports.getAllAlbums = async (req, res) => {
   try {
-    const albums = await Album.find().populate("artist").populate("tracks");
-    res.json({ albums });
+    const items = await Album.find()
+      .populate("tracks", ["name", "duration", "genre", "audio", "image"])
+      .populate("artist", ["name", "image"]);
+
+    res.status(200).json({ success: true, items });
   } catch (error) {
     console.error(error);
+
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

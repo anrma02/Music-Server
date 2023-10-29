@@ -36,18 +36,12 @@ exports.createArtist = async (req, res) => {
       if (err) {
         return res.status(400).json({ message: "Error uploading image." });
       }
-
       const { name, followers, genre } = req.body;
-
-      // Kiểm tra xem req.file đã tồn tại và không bị lỗi
       if (!req.file) {
         return res.status(400).json({ message: "Please upload an image." });
       }
-
       const imageData = req.file.buffer;
-
       const imagePath = path.join(req.file.filename);
-
       const items = new Artist({
         name,
         followers,
@@ -58,6 +52,7 @@ exports.createArtist = async (req, res) => {
           contentType: req.file.mimetype,
         },
       });
+      items.populate("tracks", ["name", "duration", "genre", "audio", "image"]);
       await items.save();
 
       res.status(201).json({
@@ -71,7 +66,7 @@ exports.createArtist = async (req, res) => {
   }
 };
 
-exports.searchArtist = async (q) => {
+exports.searchArtist = async (q, page, limit) => {
   try {
     if (!q) {
       throw new Error("Empty query");
@@ -85,11 +80,19 @@ exports.searchArtist = async (q) => {
         .replace(/\s+/g, "|"),
       "i"
     );
-    const items = await Artist.find({ name: regexQuery });
+    const skip = (page - 1) * limit;
+    const items = await Artist.find({ name: regexQuery })
+      .populate("tracks", ["name", "duration", "genre", "audio", "image"])
+      .skip(skip)
+      .limit(limit);
+    const count = await Artist.countDocuments();
+    const totalPage = Math.ceil(count / limit);
     const totalCount = items.length;
     return {
       totalCount,
       items,
+      page,
+      totalPage,
     };
   } catch (error) {
     throw new Error(error.message);
@@ -108,6 +111,7 @@ exports.getAllArtist = async (req, res) => {
       .skip(skip)
       .limit(limit);
     const totalPage = Math.ceil(count / limit);
+
     res.status(200).json({ success: true, page, totalPage, items });
   } catch (error) {
     return res.status(500).json({ message: err.message });
@@ -175,13 +179,10 @@ exports.deleteArtist = async (req, res) => {
       return res.status(401).json({ message: "Artist does not exist " });
     }
 
-    // Xóa ảnh trước khi xóa sách khỏi cơ sở dữ liệu
     if (artist.imageUrl) {
-      // Xóa ảnh từ hệ thống tệp (file system)
       fs.unlinkSync(req.file.filename);
     }
 
-    // Xóa sách từ cơ sở dữ liệu
     await Artist.findByIdAndDelete(req.params.id);
 
     res.status(200).json({ message: "Artist deleted successfuly" });
@@ -220,6 +221,7 @@ exports.addTrackToArtistSinger = async (req, res) => {
     }
 
     artist.tracks.push(trackId);
+    artist.populate("tracks", ["name", "duration", "genre", "audio", "image"]);
     const items = await artist.save();
 
     res.status(201).json({
@@ -240,6 +242,7 @@ exports.getArtistSingerByID = async (req, res) => {
     if (!items) {
       res.status(404).json({ message: "Artist no found" });
     }
+    items.populate("tracks", ["name", "duration", "genre", "audio", "image"]);
     await items.save();
     res.status(200).json({ success: true, items });
   } catch (error) {

@@ -41,9 +41,8 @@ app.use(express.static("uploads/artist"));
 app.use(express.static("uploads/track/image"));
 app.use(express.static("uploads/track/audio"));
 
-const MongoDB_URL = process.env.MongoDB_URL || "mongodb://localhost:27017";
 mongoose
-  .connect(MongoDB_URL, {
+  .connect(process.env.MongoDB_URL, {
     useNewUrlParser: true,
     useUnifiedTopology: true,
   })

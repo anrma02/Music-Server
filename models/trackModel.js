@@ -1,14 +1,21 @@
-const moongose = require("mongoose");
+const mongoose = require("mongoose");
 
 const { Artist } = require("./artistModel");
+const { Album } = require("./albumModel");
 
-const trackSchema = new moongose.Schema(
+const lyricSchema = new mongoose.Schema({
+  title: { type: [String], required: true },
+  track: { type: mongoose.Schema.Types.ObjectId, ref: "Track" },
+});
+
+const trackSchema = new mongoose.Schema(
   {
-    name: { type: String, require: true },
-    artist: { type: moongose.Schema.Types.ObjectId, ref: "Artist" },
-    date: { type: String, require: true },
-    duration: { type: Number, require: true },
-    genre: { type: [String], require: true },
+    name: { type: String, required: true },
+    artist: [{ type: mongoose.Schema.Types.ObjectId, ref: "Artist" }],
+    album: [{ type: mongoose.Schema.Types.ObjectId, ref: "Album" }],
+    // date: { type: String, required: true },
+    duration: { type: Number, required: true },
+    genre: { type: [String], required: true },
     audio: {
       contentType: { type: String },
       filename: { type: String },
@@ -19,16 +26,19 @@ const trackSchema = new moongose.Schema(
     },
     image: {
       contentType: { type: String },
-      filename: { type: String },
+      // filename: { type: String },
       path: {
         type: String,
         required: true,
       },
     },
+    lyric: { type: String },
   },
   { timestamps: true }
 );
 
-const Track = moongose.model("Track", trackSchema);
+const Track = mongoose.model("Track", trackSchema);
 
-module.exports = { Track, Artist };
+const Lyric = mongoose.model("Lyric", lyricSchema);
+
+module.exports = { Track, Artist, Album, Lyric };

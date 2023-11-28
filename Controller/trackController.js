@@ -1,10 +1,10 @@
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
-const sharp = require("sharp");
+
 const removeDiacritics = require("remove-diacritics");
 
-const { Track } = require("../models/trackModel");
+const { Track, Lyric } = require("../models/trackModel");
 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -50,7 +50,7 @@ exports.createTrack = async (req, res) => {
           .json({ message: "Error uploading Track or Image." });
       }
 
-      const { name, artist, duration, genre } = req.body;
+      const { name, artist, duration, genre, album } = req.body;
 
       const audioFile = req.files["audio"];
       const imageFile = req.files["image"];
@@ -72,7 +72,6 @@ exports.createTrack = async (req, res) => {
           trackData = Buffer.from(fileContent).toString("base64");
         }
       }
-
       let imagePath = null;
       let imageData = null;
       if (imageFile) {
@@ -83,6 +82,7 @@ exports.createTrack = async (req, res) => {
       const newItem = new Track({
         name,
         artist,
+        album,
         duration,
         genre,
         audio: {
@@ -96,7 +96,7 @@ exports.createTrack = async (req, res) => {
           contentType: imageFile ? imageFile[0].mimetype : "",
         },
       });
-      newItem.populate("artist", ["name", "image"]);
+      (await newItem.populate("artist", ["name"])).populate("album", ["name"]);
       const item = await newItem.save();
 
       if (req.body.track) {
@@ -158,6 +158,7 @@ exports.getTrack = async (req, res) => {
     const count = await Track.countDocuments();
     const items = await Track.find()
       .populate("artist", ["name", "image"])
+      .populate("album", ["name"])
       .skip(skip)
       .limit(limit);
     const totalPages = Math.ceil(count / limit);
@@ -170,10 +171,9 @@ exports.getTrack = async (req, res) => {
 
 exports.getTrackByID = async (req, res) => {
   try {
-    const items = await Track.findById(req.params.id).populate("artist", [
-      "name",
-      "image",
-    ]);
+    const items = await Track.findById(req.params.id)
+      .populate("artist", ["name", "image"])
+      .populate("album", ["name"]);
     if (items) {
       res.status(200).json({ success: true, items });
     } else {
@@ -195,31 +195,38 @@ exports.updateTrack = async (req, res) => {
           .json({ success: false, message: "Error uploading track." });
       }
 
-      const { name, artist, duration, genre } = req.body;
+      const { name, artist, duration, genre, album } = req.body;
 
       const updatedTrack = {
         name: name,
         artist: artist,
+        album: album,
         duration: duration,
         genre: genre,
-        audio: {
-          contentType: req.files?.audio?.[0]?.mimetype,
-          filename: req.files?.audio?.[0]?.filename,
-          path: req.files?.audio?.[0]?.path,
-        },
-        image: {
-          contentType: req.files?.image?.[0]?.mimetype,
-          filename: req.files?.image?.[0]?.filename,
-          path: req.files?.image?.[0]?.path,
-        },
         updatedAt: new Date(),
       };
 
+      if (req.files?.audio?.[0]) {
+        updatedTrack.audio = {
+          contentType: req.files.audio[0].mimetype,
+          // filename: req.files.audio[0].filename,
+          path: req.files.audio[0].path.replace("uploads/track/audio/", ""),
+        };
+      }
+
+      if (req.files?.image?.[0]) {
+        updatedTrack.image = {
+          contentType: req.files.image[0].mimetype,
+          // filename: req.files.image[0].filename,
+          path: req.files.image[0].path.replace("uploads/track/image/", ""),
+        };
+      }
+
       if (updatedTrack.artist) {
         updatedTrack.artist = updatedTrack.artist._id
-          ? await Artist.findById(updatedTrack.artist._id).populate(
-              "name, image"
-            )
+          ? await Artist.findById(updatedTrack.artist._id)
+              .populate("name, image")
+              .populate("album", ["name"])
           : null;
       }
 
@@ -273,6 +280,57 @@ exports.deleteTrack = async (req, res) => {
     deleteAudioFile(filePath);
     await track.deleteOne();
     res.status(200).json({ message: "Track deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Lyric
+
+exports.createLyric = async (req, res) => {
+  const { title, trackId } = req.body;
+
+  try {
+    const lyric = new Lyric({
+      title,
+      track: trackId,
+    });
+    await lyric.save();
+
+    res.status(201).json(lyric);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+exports.getLyricById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const lyric = await Lyric.findById(id);
+
+    if (!lyric) {
+      res.status(404).json({ error: "Lyric not found" });
+      return;
+    }
+
+    res.json(lyric);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+exports.deleteLyricById = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const lyric = await Lyric.findByIdAndDelete(id);
+
+    if (!lyric) {
+      res.status(404).json({ error: "Lyric not found" });
+      return;
+    }
+
+    res.json({ message: "Lyric deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

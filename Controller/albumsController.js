@@ -6,10 +6,10 @@ const { Album } = require("../models/albumModel");
 const { Track } = require("../models/trackModel");
 
 const storage = multer.diskStorage({
-  destination(req, file, cb) {
+  destination: function (req, file, cb) {
     cb(null, "uploads/album");
   },
-  filename(req, file, cb) {
+  filename: function (req, file, cb) {
     cb(null, `${Date.now()}-${file.originalname}`);
   },
 });
@@ -22,7 +22,9 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-const upload = multer({ storage, fileFilter }).single("image");
+const upload = multer({ storage: storage, fileFilter: fileFilter }).single(
+  "image"
+);
 
 exports.createAlbum = async (req, res) => {
   try {
@@ -65,6 +67,7 @@ exports.createAlbum = async (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
 exports.addTrackToAlbum = async (req, res) => {
   try {
     const trackId = req.body.trackId;
@@ -136,12 +139,12 @@ exports.searchAlbum = async (q, page, limit) => {
       throw new Error("Empty query");
     }
 
-    const normalizedQuery = removeDiacritics(q);
+    const normalizedQuery = removeDiacritics(q).toLowerCase();
     const regexQuery = new RegExp(
       normalizedQuery
-        .toLowerCase()
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        .replace(/\s+/g, "|"),
+        .split(" ")
+        .map((word) => `(?=.*${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`)
+        .join("") + ".*",
       "i"
     );
     const skip = (page - 1) * limit;
@@ -151,7 +154,8 @@ exports.searchAlbum = async (q, page, limit) => {
       .populate("artist", ["name", "image"])
       .skip(skip)
       .limit(limit);
-    const count = await Album.countDocuments();
+
+    const count = await Album.countDocuments({ name: regexQuery });
     const totalPage = Math.ceil(count / limit);
     const totalCount = items.length;
 
@@ -160,6 +164,7 @@ exports.searchAlbum = async (q, page, limit) => {
     throw new Error(error.message);
   }
 };
+
 exports.getAlbumByID = async (req, res) => {
   try {
     const items = await Album.findById(req.params.id)
@@ -181,13 +186,13 @@ exports.delete = async (req, res) => {
     const albums = await Album.findById(req.params.id);
 
     if (!albums) {
-      return res.status(401).json({ message: "Artist does not exist " });
+      return res.status(401).json({ message: "Album does not exist " });
     }
     if (albums.imageUrl) {
       fs.unlinkSync(req.file.filename);
     }
     await Album.findByIdAndDelete(req.params.id);
-    res.status(200).json({ message: "Artist deleted successfuly" });
+    res.status(200).json({ message: "Album deleted successfuly" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

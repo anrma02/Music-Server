@@ -72,12 +72,12 @@ exports.searchArtist = async (q, page, limit) => {
       throw new Error("Empty query");
     }
 
-    const normalizedQuery = removeDiacritics(q);
+    const normalizedQuery = removeDiacritics(q.toLowerCase());
     const regexQuery = new RegExp(
       normalizedQuery
-        .toLowerCase()
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-        .replace(/\s+/g, "|"),
+        .split(" ")
+        .map((word) => `(?=.*${word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`)
+        .join("") + ".*",
       "i"
     );
     const skip = (page - 1) * limit;

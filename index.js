@@ -8,7 +8,7 @@ const cookieParser = require("cookie-parser");
 
 {
   /*
-   * Router
+   * Router`
    */
 }
 
@@ -41,18 +41,15 @@ app.use(express.static("uploads/artist"));
 app.use(express.static("uploads/track/image"));
 app.use(express.static("uploads/track/audio"));
 
-mongoose
-  .connect(process.env.MongoDB_URL, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => {
+const dbConnect = async () => {
+  try {
+    await mongoose.connect(process.env.MongoDB_URL);
     console.log("Connecter to DB");
-  })
-  .catch((err) => {
-    console.log("err", err);
-  });
-
+  } catch (error) {
+    console.log("dbConnect ~ error:", error);
+  }
+};
+dbConnect();
 app.use(bodyParser.json({ limit: "30mb" }));
 app.use(bodyParser.urlencoded({ extended: true, limit: "30mb" }));
 app.use(cors());
@@ -77,8 +74,17 @@ app.use("/genre", genreRouter);
 /*
  * localhost:5000/
  */
-const PORT = process.env.PORT;
 
-app.listen(PORT, () => {
-  console.log(`Server is running ${PORT}`);
+const PORT = process.env.PORT || 8000;
+
+const server = app.listen(PORT, () => {
+  console.log(`Server is running ${PORT} `);
+});
+
+process.on("SIGINT", () => {
+  console.log("Received SIGINT. Closing server gracefully.");
+  server.close(() => {
+    console.log("Server closed.");
+    process.exit(0);
+  });
 });

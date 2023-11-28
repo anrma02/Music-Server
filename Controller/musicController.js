@@ -8,14 +8,14 @@ exports.getMusic = async (req, res) => {
     const type = req.query.type;
     let results = null;
 
-    const page = req.query.page || 1;
     const limit = parseInt(req.query.body) || 10;
+    const page = parseInt(req.query.page) || 1;
 
     if (type === "multi") {
       results = {
-        tracks: await searchTrack(q, page, limit),
-        artists: await searchArtist(q, page, limit),
-        albums: await searchAlbum(q, page, limit),
+        track: await searchTrack(q, page, limit),
+        artist: await searchArtist(q, page, limit),
+        album: await searchAlbum(q, page, limit),
       };
     } else {
       if (type === "track") {
